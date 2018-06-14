@@ -5,13 +5,13 @@
   <description>This extension extends Civicrm Contributions module. You can create custom contributions templates with dynamic user data (name, address, contribution amount, etc..). When downloaded, templates are filled in with user data according to preselected requirements (contribution timeframe and template) and pre-added shortcodes. </description>
   <license>AGPL-3.0</license>
   <maintainer>
-    <author>Commondo</author>
+    <author>CommCivi</author>
     <email>patrik.kranjcec@commondo.eu</email>
   </maintainer>
   <urls>
-    <url desc="Main Extension Page">http://example.com</url>
-    <url desc="Documentation">http://example.com</url>
-    <url desc="Support">http://example.com</url>
+    <url desc="Main Extension Page">https://github.com/CommCivi/eu.commondo.pdf-contribution-receipt</url>
+    <url desc="Documentation">https://github.com/CommCivi/eu.commondo.pdf-contribution-receipt</url>
+    <url desc="Support">https://github.com/CommCivi/eu.commondo.pdf-contribution-receipt</url>
     <url desc="Licensing">http://www.gnu.org/licenses/agpl-3.0.html</url>
   </urls>
   <releaseDate>2018-05-21</releaseDate>
@@ -20,7 +20,7 @@
   <compatibility>
     <ver>4.7</ver>
   </compatibility>
-  <comments>This extension has to be tested and documented.</comments>
+  <comments></comments>
   <civix>
     <namespace>CRM/PdfContributionReceipt</namespace>
   </civix>
