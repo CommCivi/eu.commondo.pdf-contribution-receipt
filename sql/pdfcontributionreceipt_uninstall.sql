@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS `civicrm_pdf_donation_receipt_templates`;
