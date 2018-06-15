@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <menu>
   <item>
-    <path>civicrm/pdf-contribution-receipt/generate/</path>
+    <path>civicrm/pdf-contribution-receipt/generate</path>
     <page_callback>CRM_PdfContributionReceipt_Form_GeneratePdf</page_callback>
     <title>GeneratePdf</title>
     <access_arguments>access CiviCRM</access_arguments>
   </item>
   <item>
-    <path>civicrm/pdf-contribution-receipt/new-template/</path>
+    <path>civicrm/pdf-contribution-receipt/new-template</path>
     <page_callback>CRM_PdfContributionReceipt_Form_NewTemplate</page_callback>
     <title>NewTemplate</title>
     <access_arguments>access CiviCRM</access_arguments>
