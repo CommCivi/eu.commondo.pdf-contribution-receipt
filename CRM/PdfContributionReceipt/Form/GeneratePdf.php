@@ -96,43 +96,7 @@ class CRM_PdfContributionReceipt_Form_GeneratePdf extends CRM_Core_Form
      */
     public function postProcess()
     {
-        /*
-         * Include tcpdf HTML to PDF library so it can be used in processing data.
-         */
-        $tcpdfPath = CRM_Core_Resources::singleton()->getPath('eu.commondo.pdf-contribution-receipt') . '/CRM/PdfContributionReceipt/Form/tcpdf/';
-        \Composer\Autoload\includeFile($tcpdfPath . 'tcpdf.php');
-
-        /*
-         * Start building PDF file. Add all required data by library so that PDF file can be rendered correctly.
-         */
-        $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
-
-        $pdf->SetPrintHeader(false);
-        $pdf->SetPrintFooter(false);
-
-        // set header and footer fonts
-        $pdf->setHeaderFont(Array(PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN));
-        $pdf->setFooterFont(Array(PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA));
-
-        // set default monospaced font
-        $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
-
-        // set margins
-        $pdf->SetMargins(PDF_MARGIN_LEFT, 15, PDF_MARGIN_RIGHT, 15);
-        $pdf->SetHeaderMargin(0);
-        $pdf->SetFooterMargin(0);
-
-        // set auto page breaks
-        $pdf->SetAutoPageBreak(TRUE, 15);
-
-        // set image scale factor
-        $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
-
-        // set font
-        $pdf->SetFont('dejavusans', '', 12);
-
-        // add a page
-        $pdf->AddPage();
+        $pdf = $this->getPdf();
 
         $values = $this->exportValues();
         $templateId = $values['template'];
@@ -140,7 +104,7 @@ class CRM_PdfContributionReceipt_Form_GeneratePdf extends CRM_Core_Form
         $donationPeriod = $values['donation-period'];
 
         /*
-         * Pull data for selected template (Title and HTML) to be fille in with custom data and transferred to PDF.
+         * Pull data for selected template (Title and HTML) to be filled in with custom data and transferred to PDF.
          */
         $query = "SELECT * FROM civicrm_pdf_donation_receipt_templates where id = %1";
         $sqlParams = array(
@@ -252,53 +216,125 @@ class CRM_PdfContributionReceipt_Form_GeneratePdf extends CRM_Core_Form
      */
     private function getContactData($contactId, $donationPeriod = 'most-recent-contribution')
     {
-        $donationFields = array(
-            'total-lifetime-contributions' => 'custom_39',
-            'current-year-contributions' => 'custom_40',
-            'last-year-contributions' => 'custom_42',
-            'before-last-year-contribution' => 'custom_44',
-            'most-recent-contribution' => 'custom_46',
-            'custom' => 'total_amount'
+        $year = array(
+            'current' => date('Y'),
+            'last' => date('Y', strtotime("-1 year")),
+            'before-last' => date('Y', strtotime("-2 year")),
+            'before-before-last' => date('Y', strtotime("-3 year")),
+            'next' => date('Y', strtotime("+1 year")),
         );
 
-        if($donationPeriod == 'custom') {
+        $customDateTo = '';
+        $customDateFrom = '';
 
-            $values = $this->exportValues();
+        $values = $this->exportValues();
 
+        if (isset($values['custom-date_to']) and isset($values['custom-date_from']))  {
             $customDateTo = $values['custom-date_to'];
             $customDateFrom = $values['custom-date_from'];
+        }
 
-            // APi call for custom date range for this contact id
-            $result = civicrm_api3('Contact', 'get', array(
-                'sequential' => 1,
-                'return' => "first_name,middle_name,last_name,gender_id,street_address,city, postal_code, prefix_id, suffix_id",
-                'id' => $contactId,
-            ));
+        $donationTime = array(
+            'total-lifetime-contributions' => NULL,
+            'current-year-contributions' => array(
+                'receive_date' => array('BETWEEN' => array($year['last'] . "-12-31", $year['next'] . "-01-01")),
+            ),
+            'last-year-contributions' => array(
+                'receive_date' => array('BETWEEN' => array($year['before-last'] . "-12-31", $year['current'] . "-01-01")),
+            ),
+            'before-last-year-contribution' => array(
+                'receive_date' => array('BETWEEN' => array($year['before-before-last'] . "-12-31", $year['before-last'] . "-01-01")),
+            ),
+            'most-recent-contribution' => array(
+                'options' => array('sort' => "receive_date DESC")
+            ),
+            'custom' => array(
+                'receive_date' => array('BETWEEN' => array($customDateFrom, $customDateTo)),
+            )
+        );
 
-            $resultContribution = civicrm_api3('Contribution', 'get', array(
-                'sequential' => 1,
-                'return' => "total_amount",
-                'receive_date' => array('<=' => "{$customDateTo}", '>=' => "{$customDateFrom}"),
-                'contact_id' => $contactId,
-            ));
 
-            $result['values'][0]['total_amount'] = $resultContribution['values'][0]['total_amount'];
+        $apiParams = array(
+            'sequential' => 1,
+            'return' => "total_amount, receive_date",
+            'contact_id' => $contactId,
+            'contribution_status_id' => "Completed");
 
+        if($donationTime[$donationPeriod] != NULL) {
+            $apiParams = array_merge($apiParams, $donationTime[$donationPeriod]);
+        }
+
+
+        // Api call to get Contact data
+        $result = civicrm_api3('Contact', 'get', array(
+            'sequential' => 1,
+            'return' => "first_name,middle_name,last_name,gender_id,street_address,city, postal_code, prefix_id, suffix_id",
+            'id' => $contactId,
+        ));
+
+        $resultContribution = civicrm_api3('Contribution', 'get', $apiParams);
+
+        if ($donationPeriod == 'most-recent-contribution') {
+            $result['values'][0]['amount'] = $resultContribution['values'][0]['total_amount'];
         } else {
 
-            $result = civicrm_api3('Contact', 'get', array(
-                'sequential' => 1,
-                'return' => "first_name,middle_name,last_name,gender_id,street_address,city, postal_code, prefix_id, suffix_id, {$donationFields[$donationPeriod]}",
-                'id' => $contactId,
-            ));
+            $totalAmount = 0;
 
+            foreach ($resultContribution['values'] as $contribution){
+                $totalAmount = $totalAmount + $contribution['total_amount'];
+            }
+
+            $result['values'][0]['amount'] = number_format((float)$totalAmount, 2, '.', '');;
         }
 
         $contact = $result['values'][0];
-        $contact['amount'] = $contact[$donationFields[$donationPeriod]];
         $contact['donationPeriod'] = $donationPeriod;
 
         return $contact;
+
+    }
+
+    private function getPdf () {
+
+        /*
+         * Include tcpdf HTML to PDF library so it can be used in processing data.
+         */
+        $tcpdfPath = CRM_Core_Resources::singleton()->getPath('eu.commondo.pdf-contribution-receipt') . '/CRM/PdfContributionReceipt/Form/tcpdf/';
+        \Composer\Autoload\includeFile($tcpdfPath . 'tcpdf.php');
+
+        /*
+         * Start building PDF file. Add all required data by library so that PDF file can be rendered correctly.
+         */
+        $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+
+        $pdf->SetPrintHeader(false);
+        $pdf->SetPrintFooter(false);
+
+        // set header and footer fonts
+        $pdf->setHeaderFont(Array(PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN));
+        $pdf->setFooterFont(Array(PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA));
+
+        // set default monospaced font
+        $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
+
+        // set margins
+        $pdf->SetMargins(PDF_MARGIN_LEFT, 15, PDF_MARGIN_RIGHT, 15);
+        $pdf->SetHeaderMargin(0);
+        $pdf->SetFooterMargin(0);
+
+        // set auto page breaks
+        $pdf->SetAutoPageBreak(TRUE, 15);
+
+        // set image scale factor
+        $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
+
+        // set font
+        $pdf->SetFont('dejavusans', '', 12);
+
+        // add a page
+        $pdf->AddPage();
+
+        return $pdf;
 
     }
 
